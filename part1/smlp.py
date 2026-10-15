@@ -12,8 +12,9 @@ class SparseMLP(nn.Module):
     """One-hidden-layer MLP that accepts sparse input tensors.
 
     Inputs: feature vectors of size `input_dim` (e.g. bag-of-words).
-    Process: sparse matmul into a dense hidden layer, ReLU + dropout, then a linear classifier.
-    Output: logits over `num_classes`.
+    Process: sparse matmul into a dense hidden layer, ReLU + dropout, linear (num_classes) and log-softmax outputs
+        log-softmax, rather than softmax, for numerical stability
+    Output: logprobs over `num_classes`.
     """
 
     def __init__(self, input_dim, hidden_dim, num_classes, dropout=0.2):
@@ -37,19 +38,22 @@ class SparseMLP(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
         # Everything after the first layer is dense.
-        self.output = nn.Linear(hidden_dim, num_classes)
+        self.output = nn.Sequential(
+            nn.Linear(hidden_dim, num_classes),            
+            nn.LogSoftmax(dim=-1) # for numerical stability, it is common to use log softmax, rather than softmax
+        )
 
         nn.init.xavier_uniform_(self.weight) # why xavier?
 
     def forward(self, x):
-        """Map a sparse batch [batch, input_dim] to class logits [batch, num_classes]."""
+        """Map a sparse batch [batch, input_dim] to class log-probabilities [batch, num_classes]."""
         # First matmul keeps x sparse; result is dense from here on.
         x = torch.sparse.mm(x, self.weight)
         x = x + self.bias
 
         x = self.activation(x)
         x = self.dropout(x)
-
+        # logprobs
         return self.output(x)
 
 def scipy_to_torch_sparse(x):
@@ -105,6 +109,9 @@ def train_one_epoch(model, dataloader, optimizer, criterion, device="cpu"):
     Inputs: model, train dataloader, optimizer, loss function, device.
     Output: dict with average train loss and accuracy for the epoch.
     """
+    if isinstance(device, str):
+        device = torch.device(device)
+    
     model.train()  # enable dropout / training behaviour
 
     total_loss = 0.0
@@ -118,15 +125,15 @@ def train_one_epoch(model, dataloader, optimizer, criterion, device="cpu"):
 
         optimizer.zero_grad()  # clear gradients from the previous step
 
-        logits = model(X_batch) # forward pass
-        loss = criterion(logits, y_batch) # compute the loss
+        logprobs = model(X_batch) # forward pass
+        loss = criterion(logprobs, y_batch) # compute the loss
 
         loss.backward()   # compute gradients
         optimizer.step()  # update parameters
 
         # accumulate weighted loss and correct predictions for epoch averages
         total_loss += loss.item() * y_batch.size(0)
-        predictions = logits.argmax(dim=1) # get the predicted class
+        predictions = logprobs.argmax(dim=1) # get the predicted class
         total_correct += (predictions == y_batch).sum().item() # count the number of correct predictions
         total_examples += y_batch.size(0) # count the number of examples
 
@@ -155,13 +162,13 @@ def evaluate(model, dataloader, criterion, device="cpu"):
             X_batch = X_batch.to(device) 
             y_batch = y_batch.to(device)
 
-            logits = model(X_batch) # forward pass
+            logprobs = model(X_batch) # forward pass
 
-            loss = criterion(logits, y_batch) # compute the loss
+            loss = criterion(logprobs, y_batch) # compute the loss
 
             # accumulate metrics; also keep predictions for later use
             total_loss += loss.item() * y_batch.size(0)
-            predictions = logits.argmax(dim=1) # get the predicted class
+            predictions = logprobs.argmax(dim=1) # get the predicted class
             all_preds.append(predictions)
 
             total_correct += (predictions == y_batch).sum().item() # count the number of correct predictions
@@ -175,7 +182,7 @@ def evaluate(model, dataloader, criterion, device="cpu"):
 
 def train_neural_network_model(training_set, validation_set, encoder, save_to,   
                                 hidden_dim=128, dropout=0.1, batch_size=64, learning_rate=1e-3, 
-                                weight_decay=1e-4, num_epochs=20):
+                                weight_decay=1e-4, num_epochs=20, device=torch.device("cpu")):
     """Encode texts, train SparseMLP, and checkpoint the best validation model.
 
     Inputs: train/val (text, label) pairs, encoder (text -> sparse vector), path prefix to save weights,
@@ -220,11 +227,9 @@ def train_neural_network_model(training_set, validation_set, encoder, save_to,
     time_dataloader = time.time()
     print(f"Dataloader done! Time taken: {time_dataloader - time_document_to_vector:.3f} seconds")
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
     # Create the model based on the input dimension, chosen hidden dimension, number of classification classes and dropout rate
     model = SparseMLP(input_dim=len(encoder), hidden_dim=hidden_dim, num_classes=len(set(training_labels)), dropout=dropout).to(device)
-    criterion = nn.CrossEntropyLoss() # create the loss function
+    criterion = nn.NLLLoss() # create the loss function
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay) # create the optimizer
 
     metrics = []
