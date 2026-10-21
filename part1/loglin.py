@@ -3,6 +3,14 @@ from sklearn.linear_model import LogisticRegression
 import pickle
 from tqdm.auto import tqdm
 
+def load(path):
+    """
+    Load a logistic model from {path}.pickle and return it.
+    """
+    with open(f"{path}.pickle", 'rb') as f:
+        logistic_model = pickle.load(f)
+    return logistic_model
+
 def fit(training_set, encoder: 'Encoder', save_to=None, max_iter=100, n_jobs=-1):
     """
     Constructs, trains and returns a softmax regressor.
@@ -41,3 +49,17 @@ def predict(texts, model, encoder: 'Encoder'):
     X_val_sparse = csr_matrix(validation_vectors)
     predictions = model.predict(X_val_sparse)
     return predictions
+
+def predict_probs(texts, model, encoder: 'Encoder'):
+    """
+    Predicts labels (via the most probable class decision rule) for a collection of texts. 
+    (scikit-learn hard-codes the most probable class as the decision rule of choice)
+    
+    texts: a list of texts, each a string
+    model: a trained instance of sklearn's LogisticRegression
+    encoder: the Encoder used for in the model's training
+    """
+    validation_vectors = [encoder(text) for text in texts]
+    X_val_sparse = csr_matrix(validation_vectors)
+    probs = model.predict_proba(X_val_sparse)
+    return probs

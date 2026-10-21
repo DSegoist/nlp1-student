@@ -2,6 +2,7 @@ import scipy
 import numpy as np
 from scipy.special import softmax
 from collections import OrderedDict
+from collections import Counter
 
 class NamedClasses:
     """
@@ -184,3 +185,33 @@ class TokenIndicator(Encoder):
         vector = np.zeros(len(self))
         vector[unique_token_ids] = 1
         return vector
+
+
+class MajorityVoteClassifier:
+    """
+    A text classifier is able to map text (str) to a class (str), 
+    we do so via the special method __call__.
+    """    
+
+    def __init__(self, outcome_space: NamedClasses, models: list[ProbabilisticModel], decoder: DecisionRule, seed=0):
+        """
+        outcome_space: NamedClasses for the output space
+        models: a list of trained instances of ProbabilisticModel
+        decoder: a DecisionRule
+        seed: we break ties at random
+        """
+        self.outcome_space = outcome_space
+        self.models = models
+        self.decoder = decoder
+        self.rng = np.random.RandomState(seed)
+    
+    def __call__(self, x: str) -> str:
+        """Map input text x to a named category (str)"""        
+        # compute M decisions
+        candidates = [self.decoder(model(x)) for model in self.models]
+        # counte them
+        values, counts = np.unique(candidates, return_counts=True)        
+        # break ties at random
+        index = self.rng.choice(values[counts == counts.max()])
+        # category's name
+        return self.outcome_space.name(index)        
