@@ -58,12 +58,31 @@ def train_tokenizer(corpus, vocab_size, min_frequency, pretokenizer=Metaspace(),
 
     return tokenizer        
 
+def split_test_devtest(pairs, devtest_size, seed=0):
+    """
+    Shuffles a list of labelled texts and splits the result into a devtest set of a given size
+    and a test set with what's left.
+    
+    pairs: lists of tuples (text, label)
+    devtest_size: size of the devtest split
+    seed: for reproducible shuffling
+    """
+    pairs = list(pairs)
+    ids = np.random.default_rng(seed=seed).permutation(np.arange(len(pairs)))
+    split = {
+        'devtest': [pairs[i] for i in ids[:devtest_size]],
+        'devtest_ids': [i for i in ids[:devtest_size]],
+        'test': [pairs[i] for i in ids[devtest_size:]],
+        'test_ids': [i for i in ids[devtest_size:]],
+    }
+    return split
+    
 
 def cross_validation_split(pairs, k, seed=0):
     """
     Shuffles a list of labelled texts and splits the result into k folds.
     
-    pairs: lists of tuples (sentence, label)
+    pairs: lists of tuples (text, label)
     k: number of folds
     seed: for reproducible shuffling
     """
