@@ -3,6 +3,8 @@ import numpy as np
 from scipy.special import softmax
 from collections import OrderedDict
 from collections import Counter
+from tokenizers import Tokenizer
+
 
 class NamedClasses:
     """
@@ -169,7 +171,7 @@ class LogLinearSoftmaxRegressor(ProbabilisticModel):
 
 class TokenIndicator(Encoder):
 
-    def __init__(self, tokenizer: 'Tokenizer'):
+    def __init__(self, tokenizer: Tokenizer):
         self.tokenizer = tokenizer
         
     def __len__(self) -> int:
