@@ -176,7 +176,7 @@ class TokenIndicator(Encoder):
         
     def __len__(self) -> int:
         """Dimensionality of the representation space"""
-        return len(tokenizer.get_vocab())
+        return len(self.tokenizer.get_vocab())
 
     def __call__(self, x: str) -> 'np.array':
         """Represent x as a D-dimensional vector of real numbers"""
@@ -217,3 +217,19 @@ class MajorityVoteClassifier:
         index = self.rng.choice(values[counts == counts.max()])
         # category's name
         return self.outcome_space.name(index)        
+
+class BagOfWords(Encoder):
+
+    def __init__(self, tokenizer: Tokenizer):
+        self.tokenizer = tokenizer
+
+    def __len__(self):
+        return len(self.tokenizer.get_vocab())
+
+    def __call__(self, x):
+        token_ids = self.tokenizer.encode(x).ids
+        vector = np.zeros(len(self))
+        for token_id in token_ids:
+            vector[token_id] += 1
+        return vector
+
