@@ -1,0 +1,18 @@
+# Virtual environments
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Pretrained embeddings
+part2/glove.2024.wikigiga.50d.zip
+part2/numberbatch-en-19.08.txt.gz
+part2/wiki-news-300d-1M.vec.zip
+
+# Trained PyTorch models
+*.pt
